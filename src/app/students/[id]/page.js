@@ -7,7 +7,7 @@ import { format, parseISO } from 'date-fns';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
-import QrGenerator from '@/components/QrGenerator';
+import { QRCode } from 'react-qrcode-logo';
 
 export default function StudentProfilePage({ params }) {
   const [student, setStudent] = useState(null);
@@ -148,7 +148,7 @@ export default function StudentProfilePage({ params }) {
         </div>
         <div className="mt-8 flex flex-col items-center">
           <div className="bg-gray-100 p-4 rounded-lg shadow" ref={qrRef}>
-            <QrGenerator value={student.phone} size={128} />
+            <QRCode value={student.phone} size={128} />
           </div>
           <div className="mt-4 flex gap-2">
             <p className="text-sm text-gray-700">Scan this QR code for attendance</p>

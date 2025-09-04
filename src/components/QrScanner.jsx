@@ -2,21 +2,19 @@
 import React, { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
-export default function QrScanner({ onScan, onClose }) {
+export default function QRScannerModal({ onScan, onClose }) {
   const readerId = "qr-reader";
   const scannerRef = useRef(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
-    let html5Qr = null;
 
-    const startScanner = async () => {
+    const start = async () => {
       try {
         const module = await import("html5-qrcode");
         const { Html5Qrcode, Html5QrcodeScanner } = module;
 
-        // enumerate cameras
         let cameras = [];
         try {
           cameras = await Html5Qrcode.getCameras();
@@ -35,7 +33,7 @@ export default function QrScanner({ onScan, onClose }) {
         if (cameras && cameras.length > 0) {
           const preferred = cameras.find(c => /back|rear|environment|rear camera/i.test(c.label)) || cameras[0];
           const cameraId = preferred.id;
-          html5Qr = new Html5Qrcode(readerId);
+          const html5Qr = new Html5Qrcode(readerId);
           scannerRef.current = html5Qr;
           await html5Qr.start(
             cameraId,
@@ -54,13 +52,12 @@ export default function QrScanner({ onScan, onClose }) {
             }
           );
         } else {
-          // fallback to Html5QrcodeScanner UI
           const scanner = new Html5QrcodeScanner(readerId, config, false);
           scannerRef.current = scanner;
           await scanner.render(
             (result) => {
               onScan(result);
-              try { scanner.clear(); } catch(e){ }
+              try { scanner.clear(); } catch(e){}
               onClose && onClose();
             },
             (error) => {
@@ -77,7 +74,7 @@ export default function QrScanner({ onScan, onClose }) {
       }
     };
 
-    startScanner();
+    start();
 
     return () => {
       mounted = false;
