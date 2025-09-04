@@ -16,19 +16,20 @@ function QRScannerModal({ onScan, onClose }) {
     let lastErrorTime = 0;
     const ERROR_THROTTLE_MS = 8000;
 
-    const initializeScanner = async () => {
+    
+const initializeScanner = async () => {
       try {
-        // dynamic import to avoid any SSR/bundling issues
-        const { Html5QrcodeScanner } = await import('html5-qrcode');
+        // dynamic import to avoid SSR/bundling issues and to get helpers
+        const html5qrcodeModule = await import('html5-qrcode');
+        const { Html5Qrcode, Html5QrcodeScanner } = html5qrcodeModule;
 
-        // Try a gentle permission check (use 'ideal' to avoid OverconstrainedError)
+        // Gentle permission check (non-fatal)
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'environment' }
           });
           stream.getTracks().forEach(track => track.stop());
         } catch (permErr) {
-          // ignore; html5-qrcode will request permission itself. keep a console warning.
           console.warn('Permission check failed (non-fatal):', permErr);
         }
 
@@ -40,37 +41,73 @@ function QRScannerModal({ onScan, onClose }) {
           showZoomSliderIfSupported: false,
           defaultZoomValueIfSupported: 2,
           rememberLastUsedCamera: true,
+          // do not force strict 'exact' constraints here
           videoConstraints: {
-            // use 'ideal' not 'exact' to avoid overconstrained errors on some devices
-            facingMode: { ideal: "environment" },
+            facingMode: { ideal: 'environment' },
             width: { min: 360, ideal: 640, max: 1920 },
             height: { min: 240, ideal: 480, max: 1080 }
           }
         };
 
-        scanner = new Html5QrcodeScanner("qr-reader", config, false);
+        // Try to enumerate cameras and pick a sensible one (prefer back/rear)
+        let cameras = [];
+        try {
+          cameras = await Html5Qrcode.getCameras();
+        } catch (e) {
+          console.warn('Could not enumerate cameras:', e);
+        }
 
-        await scanner.render(
-          (result) => {
-            try {
-              onScan(result);
-            } catch (e) {
-              console.error('onScan handler error', e);
-            }
-            // try to clear scanner then close modal
-            scanner.clear().catch(() => {});
-            onClose();
-          },
-          (error) => {
-            const now = Date.now();
-            if (error && !error.includes("QR code not found") && now - lastErrorTime > ERROR_THROTTLE_MS) {
-              if (!error.includes("No QR code found")) {
-                toast.error(typeof error === 'string' ? error : 'Scanner error');
+        if (cameras && cameras.length > 0) {
+          // prefer a camera with label indicating back/rear/environment
+          let preferred = cameras.find(c => /back|rear|environment|rear camera/i.test(c.label));
+          const cameraId = (preferred && preferred.id) || cameras[0].id;
+
+          // create Html5Qrcode instance and start scanning with chosen cameraId
+          const html5Qr = new Html5Qrcode("qr-reader");
+          scanner = html5Qr;
+
+          await html5Qr.start(
+            cameraId,
+            config,
+            (decodedText, decodedResult) => {
+              try {
+                onScan(decodedText);
+              } catch (e) {
+                console.error('onScan handler error', e);
               }
-              lastErrorTime = now;
+              html5Qr.stop().catch(()=>{});
+              onClose();
+            },
+            (errorMessage) => {
+              const now = Date.now();
+              if (errorMessage && !errorMessage.includes("QR code not found") && now - lastErrorTime > ERROR_THROTTLE_MS) {
+                if (!errorMessage.includes("No QR code found")) {
+                  toast.error(typeof errorMessage === 'string' ? errorMessage : 'Scanner error');
+                }
+                lastErrorTime = now;
+              }
             }
-          }
-        );
+          );
+        } else {
+          // Fallback to the Html5QrcodeScanner which provides its own UI and camera selection
+          scanner = new Html5QrcodeScanner("qr-reader", config, false);
+          await scanner.render(
+            (result) => {
+              onScan(result);
+              scanner.clear();
+              onClose();
+            },
+            (error) => {
+              const now = Date.now();
+              if (error && !error.includes("QR code not found") && now - lastErrorTime > ERROR_THROTTLE_MS) {
+                if (!error.includes("No QR code found")) {
+                  toast.error(typeof error === 'string' ? error : 'Scanner error');
+                }
+                lastErrorTime = now;
+              }
+            }
+          );
+        }
       } catch (error) {
         console.error('Failed to initialize QR scanner:', error);
         if (error && error.name === 'NotAllowedError') {
@@ -83,6 +120,7 @@ function QRScannerModal({ onScan, onClose }) {
         onClose();
       }
     };
+;
 
     initializeScanner();
 
