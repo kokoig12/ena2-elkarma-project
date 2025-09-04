@@ -6,11 +6,9 @@ import { db } from '@/lib/firebase';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import dynamic from 'next/dynamic';
-import { Html5QrcodeScanner } from 'html5-qrcode';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import dynamic from 'next/dynamic';
-const QrScannerModal = dynamic(() => import('@/components/QrScanner'), { ssr: false });
 
+import ProtectedRoute from '@/components/ProtectedRoute';
+const QrScannerModal = dynamic(() => import('@/components/QrScanner'), { ssr: false });
 
 export default function AttendancePage() {
   const [students, setStudents] = useState([]);
